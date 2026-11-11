@@ -1,5 +1,5 @@
 
-name: Build V33 Android APK
+name: Build V33 Android APK (fixed SDK)
 
 on:
   workflow_dispatch:
@@ -16,30 +16,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract V33 source
+      - name: Extract V33 source ZIP
+        shell: bash
         run: |
+          set -euo pipefail
+          ZIP="ContractScanner_V33_EarlyFlow_Independent_DailyK.zip"
+          test -f "$ZIP" || { echo "::error::Upload $ZIP to the repository root first"; exit 1; }
           mkdir -p source
-          unzip -q ContractScanner_V33_EarlyFlow_Independent_DailyK.zip -d source
+          unzip -q "$ZIP" -d source
+          test -f source/settings.gradle
           test -f source/app/build.gradle
 
-      - name: Setup Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Verify preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          test -f "$SDK/platforms/android-35/android.jar"
+          test -f "$SDK/build-tools/35.0.0/aapt"
 
-      - name: Install SDK 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Setup Gradle
+      - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Run tests
+      - name: Run source tests
         working-directory: source
         run: |
           node tests/core.test.js
@@ -48,11 +55,11 @@ jobs:
           node tests/engine-v33.test.js
           node tests/ui-regression.test.js
 
-      - name: Build APK
+      - name: Build debug APK
         working-directory: source
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Upload APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: V33-EarlyFlow-APK
