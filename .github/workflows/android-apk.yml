@@ -1,0 +1,60 @@
+
+name: Build V33 Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract V33 source
+        run: |
+          mkdir -p source
+          unzip -q ContractScanner_V33_EarlyFlow_Independent_DailyK.zip -d source
+          test -f source/app/build.gradle
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Run tests
+        working-directory: source
+        run: |
+          node tests/core.test.js
+          node tests/minute.test.js
+          node tests/quick-nav.test.js
+          node tests/engine-v33.test.js
+          node tests/ui-regression.test.js
+
+      - name: Build APK
+        working-directory: source
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: V33-EarlyFlow-APK
+          path: source/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
